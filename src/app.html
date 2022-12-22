@@ -4,9 +4,34 @@
 		<meta charset="utf-8" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
 		<meta name="viewport" content="width=device-width" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@48,400,0,0" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Roboto:wght@100&display=swap"
+			rel="stylesheet"
+		/>
+
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>
+	<style>
+		.node.hover {
+			transition: r 0.1s ease-in, stroke-width 0.1s ease-in;
+		}
+		.node {
+			transition: r 0.1s ease-out, stroke-width 0.1s ease-out;
+		}
+		.links line {
+			transition: stroke 0.1s linear;
+		}
+		body {
+			margin: 0px;
+			font-family: 'Roboto', sans-serif;
+		}
+		@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@100&display=swap');
+	</style>
 </html>
