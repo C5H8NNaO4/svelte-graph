@@ -1,11 +1,11 @@
 <script lang="ts">
 	import * as d3 from 'd3';
-	import Editor from '../../components/Editor.svelte';
+	import Editor from '../components/Editor.svelte';
 	import { afterUpdate, onMount } from 'svelte';
 	// src/stores/content.js
-	import Header from '../../components/Header.svelte';
+	import Header from '../components/Header.svelte';
 	import { beforeUpdate } from 'svelte';
-	import Button from '../../components/Button.svelte';
+	import Button from '../components/Button.svelte';
 	import saveFile from 'save-as-file/dist/save-file';
 	import { openFile, useSocket } from '$lib/util';
 	import { base } from '$app/paths';
