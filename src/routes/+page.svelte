@@ -1,14 +1,11 @@
 <script lang="ts">
 	import * as d3 from 'd3';
 	import Editor from '../components/Editor.svelte';
-	import { afterUpdate, onMount } from 'svelte';
-	// src/stores/content.js
+	import { afterUpdate, onMount, beforeUpdate } from 'svelte';
 	import Header from '../components/Header.svelte';
-	import { beforeUpdate } from 'svelte';
 	import Button from '../components/Button.svelte';
 	import saveFile from 'save-as-file/dist/save-file';
-	import { openFile, useSocket } from '$lib/util';
-	import { base } from '$app/paths';
+	import { openFile } from '$lib/util';
 
 	// Get the value out of storage on load.
 	let notes = typeof localStorage == 'undefined' ? {} : JSON.parse(localStorage.notes || '{}');
@@ -359,10 +356,16 @@
 	let name = 'world';
 	let socket;
 	const connect = () => {
-		socket = new WebSocket(prompt('url', 'ws://localhost:3214'));
-		console.log('OPEN', socket);
+		socket = new WebSocket(
+			prompt(
+				'url',
+				process.env.NODE_ENV !== 'production'
+					? 'ws://localhost:3214'
+					: 'wss://graph.state-less.cloud'
+			)
+		);
 		socket.onopen = () => {
-			console.log('OPEN');
+			console.log('Connection established!');
 		};
 		socket.onmessage = (e) => {
 			const data = JSON.parse(e.data);
