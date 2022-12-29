@@ -34,6 +34,7 @@
 	"dependencies": {
 		"@tinymce/tinymce-svelte": "^1.0.0",
 		"@types/d3": "^7.4.0",
+		"color": "^4.2.3",
 		"d3": "^7.7.0",
 		"lexical": "^0.2.9",
 		"lexical-svelte": "^1.0.0-beta.4",

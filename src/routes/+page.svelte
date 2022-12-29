@@ -4,72 +4,76 @@
 	import { afterUpdate, onMount, beforeUpdate } from 'svelte';
 	import Header from '../components/Header.svelte';
 	import Button from '../components/Button.svelte';
-	import saveFile from 'save-as-file/dist/save-file';
-	import { openFile } from '$lib/util';
+	import {
+		getLinkColor,
+		getNeighbors,
+		getNodeColor,
+		getTextColor,
+		openFile,
+		saveToFile
+	} from '$lib/util';
+	import { saveToLocalStorage } from '$lib/core';
+	import { initialState, reducer, stages, useReducer } from '$lib/state';
+	import { HydrateLinks, HydrateNodes } from '$lib/actions';
+	import Color from 'color';
 
+	const connColors = ['yellow', 'green', 'yellow', 'red'];
 	// Get the value out of storage on load.
 	let notes = typeof localStorage == 'undefined' ? {} : JSON.parse(localStorage.notes || '{}');
 	let r = 0;
+	let [state, dispatch] = useReducer(reducer, initialState);
 
-	function getLinkColor(node, link) {
-		return isNeighborLink(node, link) ? 'green' : '#E5E5E5';
-	}
+	console.log('STATE', state);
 
-	function isNeighborLink(node, link) {
-		return link.target.id === node.id || link.source.id === node.id;
-	}
+	let baseNodes = state.nodes;
+	let baseLinks = state.links;
+	let links = [...baseLinks];
+	let nodes = [...baseNodes];
+	let readyState = -1;
+	const resetData = () => {
+		// const nodeIds = nodes.map((node) => node.id);
+		// const baseNodeIds = baseNodes.map((node) => node.id);
 
-	function getNeighbors(node, links) {
-		return links.reduce(
-			(neighbors, link) => {
-				if (link.target === node.id || link.target?.id === node.id) {
-					neighbors.push(link.source.id);
-				} else if (link.source === node.id || link.source?.id === node.id) {
-					neighbors.push(link.target.id);
-				}
-				return neighbors;
-			},
-			[node.id]
-		);
-	}
-	const colors = ['gray', 'red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink'];
+		// baseNodes.forEach((node) => {
+		// 	if (nodeIds.indexOf(node.id) === -1) {
+		// 		nodes.push(node);
+		// 	}
+		// });
 
-	function getNodeColor(node, neighbors) {
-		const ns = nodes
-			.filter((n) => neighbors.includes(n.id) && typeof n.group !== 'undefined')
-			.map((n) => n.group);
-		console.log('NS', ns);
-		const ind = typeof node.group !== 'undefined' ? [node.group] : ns;
-		return colors[Math.max(...ind)];
-	}
+		// nodes.slice().forEach((node) => {
+		// 	console.log('Remove?', node.id, baseNodeIds.indexOf(node.id));
+		// 	if (baseNodeIds.indexOf(node.id) === -1) {
+		// 		nodes.splice(nodes.indexOf(node), 1);
+		// 	}
+		// });
+		nodes = [...baseNodes];
+		links = [...baseLinks];
+	};
 
-	function getTextColor(node, neighbors) {
-		return neighbors.indexOf(node.id) ? 'green' : 'black';
-	}
+	const onStateChange = (newState) => {
+		baseNodes = state.nodes;
+		baseLinks = state.links;
+		nodes = [...baseNodes];
+		links = [...links];
+		resetData?.();
+		update?.();
+	};
 
-	const stages = ['on radar', 'trying out', 'using', 'mastered'];
-	const categories = ['frameworks', 'technologies', 'languages'];
-	let baseNodes =
-		typeof localStorage === 'undefined'
-			? []
-			: !localStorage.nodes
-			? [
-					...categories.map((category, index) => ({
-						id: category,
-						group: index,
-						label: category,
-						level: 2
-					})),
-					...stages.map((stage, index) => ({
-						id: stage,
-						group: categories.length + index,
-						label: stage,
-						level: 1
-					}))
-			  ]
-			: JSON.parse(localStorage.nodes);
+	onMount(() => {
+		if (localStorage.nodes) {
+			state = dispatch(HydrateNodes(JSON.parse(localStorage.nodes)));
+			state = dispatch(HydrateLinks(JSON.parse(localStorage.links)));
+			baseNodes = state.nodes;
+			baseLinks = state.links;
+			// nodes = [...baseNodes];
+			// links = [...links];
+			resetData?.();
+			update?.();
+		}
+	});
 
-	let baseLinks = typeof localStorage === 'undefined' ? [] : JSON.parse(localStorage.links || '[]');
+	// let baseLinks = typeof localStorage === 'undefined' ? [] : JSON.parse(localStorage.links || '[]');
+
 	const getLinksFromNotes = (notes) =>
 		Object.keys(notes).reduce((acc, target) => {
 			const src = Object.keys(notes).reduce((acc, id2) => {
@@ -86,14 +90,15 @@
 			return acc;
 		}, []);
 	// const baseLinks = getLinksFromNotes(notes);
-	let links = [...baseLinks];
-	let nodes = [...baseNodes];
+
 	let update, group, select, zoom, textGroup, simulation;
 	let g_selectedNode;
 	let width;
 	let linkElements, nodeElements, textElements;
-	let selectedId, resetData;
 
+	$: {
+		onStateChange(state);
+	}
 	onMount(() => {
 		width = window.innerWidth;
 		const height = window.innerHeight;
@@ -164,12 +169,15 @@
 		function selectNode(e, selectedNode) {
 			if (g_selectedNode?.id === selectedNode.id) {
 				g_selectedNode = undefined;
+				cat = selectedNode.id;
 				width = window.innerWidth;
 				d3.select('svg').attr('width', width).attr('height', height);
 				resetData();
 				updateSimulation();
 			} else {
 				width = window.innerWidth - 350;
+				cat = selectedNode.id;
+
 				d3.select('svg').attr('width', width).attr('height', height);
 				let sel = baseNodes.find((n) => n.id === selectedNode.id);
 				if (typeof notes[sel.id] === 'undefined') {
@@ -183,7 +191,7 @@
 			const neighbors = getNeighbors(selectedNode, baseLinks);
 
 			// we modify the styles to highlight selected nodes
-			nodeElements.attr('fill', (node) => getNodeColor(node, getNeighbors(node, baseLinks)));
+			nodeElements.attr('fill', (node) => getNodeColor(node, getNeighbors(node, baseLinks), nodes));
 			textElements.attr('fill', (node) => getTextColor(node, neighbors));
 			linkElements.attr('stroke', (link) => getLinkColor(selectedNode, link));
 
@@ -198,15 +206,19 @@
 
 			// we modify the styles to highlight selected nodes
 			nodeElements
-				.attr('fill', (node) => getNodeColor(node, getNeighbors(node, baseLinks)))
+				.attr('fill', (node) =>
+					node.id !== selectedNode.id
+						? getNodeColor(node, getNeighbors(node, baseLinks), nodes)
+						: Color(getNodeColor(node, getNeighbors(node, baseLinks), nodes)).alpha(0.8)
+				)
 				.attr(
 					'r',
 					(node) =>
 						(node.id === selectedNode.id ? 10 : 5) +
-						getNeighbors(node, links)?.length * (3 / node.level)
+						getNeighbors(node, links)?.length * (2 / node.level)
 				)
 				.attr('class', 'node hover')
-				.attr('stroke', (n) => (n.id === selectedNode.id ? 'green' : 'black'))
+				.attr('stroke', 'black')
 				.attr('stroke-width', (n) => (n.id === selectedNode.id ? '2px' : '1px'));
 
 			linkElements.attr('stroke', (link) => getLinkColor(selectedNode, link));
@@ -216,8 +228,8 @@
 
 			// we modify the styles to highlight selected nodes
 			nodeElements
-				.attr('fill', (node) => getNodeColor(node, getNeighbors(node, baseLinks)))
-				.attr('r', (node) => 5 + getNeighbors(node, links)?.length * (3 / node.level))
+				.attr('fill', (node) => getNodeColor(node, getNeighbors(node, baseLinks), nodes))
+				.attr('r', (node) => 5 + getNeighbors(node, links)?.length * (2 / node.level))
 				.attr('class', 'node')
 				.attr('stroke', 'black')
 				.attr('stroke-width', '1px');
@@ -226,17 +238,6 @@
 		}
 		// this helper simple adds all nodes and links
 		// that are missing, to recreate the initial state
-		resetData = () => {
-			const nodeIds = nodes.map((node) => node.id);
-			console.log('Reset', nodeIds, baseNodes);
-			baseNodes.forEach((node) => {
-				if (nodeIds.indexOf(node.id) === -1) {
-					nodes.push(node);
-				}
-			});
-
-			links = [...baseLinks];
-		};
 
 		// diffing and mutating the data
 		function updateData(selectedNode) {
@@ -278,11 +279,12 @@
 			nodeElements = nodeGroup.selectAll('circle').data(nodes, (node) => node.id);
 			nodeElements.exit().remove();
 
+			console.log('MEIG', getNeighbors(nodes[0], links)?.length, links);
 			const nodeEnter = nodeElements
 				.enter()
 				.append('circle')
-				.attr('r', (node) => 5 + getNeighbors(node, links)?.length * (3 / node.level))
-				.attr('fill', (node) => getNodeColor(node, getNeighbors(node, links)))
+				.attr('r', (node) => 5 + getNeighbors(node, links)?.length * (2 / node.level))
+				.attr('fill', (node) => getNodeColor(node, getNeighbors(node, links), nodes))
 				.attr('stroke', 'black')
 				.call(dragDrop)
 				// we link the selectNode method here
@@ -364,8 +366,19 @@
 					: 'wss://graph.state-less.cloud'
 			)
 		);
+		readyState = 0;
+		socket.onclose = () => {
+			readyState = 3;
+			socket = null;
+		};
 		socket.onopen = () => {
 			console.log('Connection established!');
+			readyState = 1;
+		};
+		socket.onerror = (e) => {
+			console.log('Error', e);
+			readyState = 3;
+			socket = null;
 		};
 		socket.onmessage = (e) => {
 			const data = JSON.parse(e.data);
@@ -388,7 +401,7 @@
 					.selectAll('circle')
 					.data(nodes, (node) => node.id)
 					.attr('r', (node) => 5 + getNeighbors(node, links)?.length * (2 / node.level))
-					.attr('fill', (node) => getNodeColor(node, getNeighbors(node, links)))
+					.attr('fill', (node) => getNodeColor(node, getNeighbors(node, links), nodes))
 					.attr('stroke', 'black');
 				// window.links = links;
 			}
@@ -425,35 +438,42 @@
 					.selectAll('circle')
 					.data(nodes, (node) => node.id)
 					.attr('r', (node) => 5 + getNeighbors(node, links)?.length * (2 / node.level))
-					.attr('fill', (node) => getNodeColor(node, getNeighbors(node, links)))
+					.attr('fill', (node) => getNodeColor(node, getNeighbors(node, links), nodes))
 					.attr('stroke', 'black');
 			}
 		};
 	};
 	const add = () => {
-		if (!nodes.find((n) => n.id === cat)) {
-			baseNodes.push({ id: cat, label: cat, level: 2 });
+		if (!baseNodes.find((n) => n.id === cat)) {
+			const node = { id: cat, label: cat, level: 2 };
+			baseNodes.push(node);
+			nodes.push(node);
 		}
-		if (!nodes.find((n) => n.id === name)) {
+		if (!baseNodes.find((n) => n.id === name)) {
 			const node = { id: name, label: name, level: 3 };
 			baseNodes.push(node);
+			nodes.push(node);
 			socket?.send?.(
 				JSON.stringify({
 					action: 'add',
 					value: node
 				})
 			);
+		} else {
+			nodes.push(baseNodes.find((n) => n.id === name));
 		}
 		const link = { target: name, source: cat, strength: 0.1 };
 		baseLinks.push(link);
+		links.push(link);
 		socket?.send?.(
 			JSON.stringify({
 				action: 'link',
 				value: link
 			})
 		);
-		nodes = [...baseNodes];
-		links = [...baseLinks];
+		// nodes = [...baseNodes];
+		// links = [...baseLinks];
+
 		canDelete = !!links.find(
 			(l) => (l.target === name && l.source === cat) || (l.target === cat && l.source === name)
 		);
@@ -462,7 +482,7 @@
 			.selectAll('circle')
 			.data(nodes, (node) => node.id)
 			.attr('r', (node) => 5 + getNeighbors(node, links)?.length * (2 / node.level))
-			.attr('fill', (node) => getNodeColor(node, getNeighbors(node, links)))
+			.attr('fill', (node) => getNodeColor(node, getNeighbors(node, links), nodes))
 			.attr('stroke', 'black');
 	};
 
@@ -483,7 +503,7 @@
 			.selectAll('circle')
 			.data(nodes, (node) => node.id)
 			.attr('r', (node) => 5 + getNeighbors(node, links)?.length * (2 / node.level))
-			.attr('fill', (node) => getNodeColor(node, getNeighbors(node, links)))
+			.attr('fill', (node) => getNodeColor(node, getNeighbors(node, links), nodes))
 			.attr('stroke', 'black');
 		console.log('Links', links);
 		canDelete = !!links.find(
@@ -527,7 +547,7 @@
 			.selectAll('circle')
 			.data(nodes, (node) => node.id)
 			.attr('r', (node) => 5 + getNeighbors(node, links)?.length * (2 / node.level))
-			.attr('fill', (node) => getNodeColor(node, getNeighbors(node, links)))
+			.attr('fill', (node) => getNodeColor(node, getNeighbors(node, links), nodes))
 			.attr('stroke', 'black');
 
 		// canDeleteNode = !!nodes.find((l) => l.id === name);
@@ -544,48 +564,23 @@
 
 	afterUpdate(() => {});
 	beforeUpdate(() => {
-		// if (textGroup) {
-		// 	console.log('BaseNodes', baseNodes);
-		// 	textGroup
-		// 		.selectAll('text')
-		// 		.data(baseNodes, (node) => node.id)
-		// 		.text((node) => node.label);
-		// }
-
 		if (socket) return;
 
-		if (localStorage.notes !== JSON.stringify(notes)) {
-			localStorage.notes = JSON.stringify(notes);
-		}
-		localStorage.nodes = JSON.stringify(baseNodes);
-		localStorage.links = JSON.stringify(
-			baseLinks.map(({ id, source, target, strength }) => ({
-				id,
-				source: source.id || source,
-				target: target.id || target,
-				strength
-			}))
-		);
+		// saveToLocalStorage({ notes, nodes: baseNodes, links: baseLinks });
 
 		console.log('Saving');
 
-		nodeElements?.attr('fill', (node) => getNodeColor(node, getNeighbors(node, baseLinks)));
+		nodeElements?.attr('fill', (node) => getNodeColor(node, getNeighbors(node, baseLinks), nodes));
 	});
 
 	let isMenuVisible = false;
 	const toggleMenu = () => {
 		isMenuVisible = !isMenuVisible;
 	};
-
-	const save = (content, name) => {
-		const json = JSON.stringify(content);
-		const file = new File([json], { type: 'application/json' });
-		saveFile(file, name);
-	};
 </script>
 
 <main>
-	<Header title="Radar">
+	<Header title="Radar" clsn={g_selectedNode ? 'test' : ''}>
 		<div title="Zoom In" class={'button '} on:click={() => zoom.scaleBy(d3.select('svg'), 1.25)}>
 			<span class="material-symbols-outlined">add_circle</span>
 		</div>
@@ -594,8 +589,8 @@
 		</div>
 		<span class="grow" />
 
-		<select bind:value={cat}>
-			{#each nodes.map((n) => n.id) as cat}
+		<select bind:value={cat} disabled={!!g_selectedNode}>
+			{#each baseNodes.map((n) => n.id) as cat}
 				<option value={cat}>{cat}</option>
 			{/each}
 		</select>
@@ -611,7 +606,7 @@
 	</Header>
 	<svg id="viz" />
 	{#if isMenuVisible}
-		<div class="note dense">
+		<div class={'note dense' + (g_selectedNode ? ' selectedNode' : '')}>
 			<div class="flex">
 				<Button
 					on:click={socket
@@ -620,13 +615,14 @@
 								baseLinks = JSON.parse(localStorage.links);
 								links = [...baseLinks];
 								baseNodes = JSON.parse(localStorage.nodes);
+								nodes = [...baseNodes];
 								resetData();
 								update();
 								socket.close();
 								socket = null;
 						  }
 						: connect}
-					clsn={socket ? 'conn green' : 'conn'}
+					clsn={'conn ' + connColors[readyState]}
 					iconName="wifi"
 				/>
 				<span class="grow" />
@@ -637,7 +633,7 @@
 					title="Save"
 					iconName="save"
 					disabled={false}
-					on:click={save({ notes, nodes, links }, 'notes.json')}
+					on:click={saveToFile({ notes, nodes, links }, 'notes.json')}
 				>
 					Save
 				</Button>
@@ -662,6 +658,7 @@
 					on:click={socket
 						? () => {
 								socket.send(JSON.stringify({ action: 'get' }));
+								g_selectedNode = null;
 						  }
 						: undefined}>Sync</Button
 				>
@@ -725,6 +722,12 @@
 </main>
 
 <style>
+	.selectedNode {
+		margin-right: 350px;
+	}
+	.header {
+		padding-right: 350px;
+	}
 	.bar {
 		display: flex;
 		flex-direction: row;
@@ -754,6 +757,12 @@
 	}
 	:global(.green) {
 		color: green;
+	}
+	:global(.yellow) {
+		color: yellow;
+	}
+	:global(.red) {
+		color: red;
 	}
 	.flex {
 		display: flex;

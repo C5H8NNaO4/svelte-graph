@@ -1,8 +1,9 @@
 <script lang="ts">
 	export let title: string;
+	export let clsn: string;
 </script>
 
-<div class="header">
+<div class={'header ' + clsn}>
 	<span>{title}</span>
 	<slot />
 </div>
@@ -21,5 +22,8 @@
 		gap: 8px 8px;
 		padding-left: 32px;
 		padding-right: 32px;
+	}
+	:global(.test) {
+		padding-right: 382px !important;
 	}
 </style>
