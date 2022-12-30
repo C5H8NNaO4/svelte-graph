@@ -355,7 +355,7 @@
 	});
 
 	let cat = stages[0];
-	let name = 'world';
+	let name = 'Svelte';
 	let socket;
 	const connect = () => {
 		socket = new WebSocket(
