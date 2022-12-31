@@ -131,7 +131,7 @@
 					.forceCenter()
 					.x(width / 2)
 					.y(height / 2)
-					.strength(0.8)
+					.strength(1)
 			)
 			.force('collide', d3.forceCollide().strength(0.1).radius(50).iterations(1)); // Force that avoids circle overlapping
 
@@ -150,6 +150,7 @@
 			.on('start', (node) => {
 				node.fx = node.x;
 				node.fy = node.y;
+				simulation.force('center', d3.forceCenter().strength(0));
 			})
 			.on('drag', (e, node) => {
 				simulation.alphaTarget(0.7).restart();
@@ -279,7 +280,6 @@
 			nodeElements = nodeGroup.selectAll('circle').data(nodes, (node) => node.id);
 			nodeElements.exit().remove();
 
-			console.log('MEIG', getNeighbors(nodes[0], links)?.length, links);
 			const nodeEnter = nodeElements
 				.enter()
 				.append('circle')
@@ -323,15 +323,15 @@
 					.attr('y2', (link) => link.target.y);
 			});
 
-			simulation.force(
-				'center',
-				d3
-					.forceCenter()
-					.x(width / 2)
-					.y((height - 64) / 2)
-					.strength(0.8)
-			);
-			simulation.force('link').links(links);
+			// simulation.force(
+			// 	'center',
+			// 	d3
+			// 		.forceCenter()
+			// 		.x(width / 2)
+			// 		.y((height - 64) / 2)
+			// 		.strength(0.8)
+			// );
+			simulation.force('link').links(links).strength(0.1);
 			simulation.alphaTarget(0.7).restart();
 			setTimeout(() => {
 				simulation.alphaTarget(0);
@@ -570,12 +570,6 @@
 
 	afterUpdate(() => {});
 	beforeUpdate(() => {
-		if (socket) return;
-
-		// saveToLocalStorage({ notes, nodes: baseNodes, links: baseLinks });
-
-		console.log('Saving');
-
 		nodeElements?.attr('fill', (node) => getNodeColor(node, getNeighbors(node, baseLinks), nodes));
 	});
 
