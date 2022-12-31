@@ -471,6 +471,9 @@
 				value: link
 			})
 		);
+		if (socket?.readyState !== 1) {
+			saveToLocalStorage({ notes, nodes, links });
+		}
 		// nodes = [...baseNodes];
 		// links = [...baseLinks];
 
@@ -543,6 +546,9 @@
 		baseLinks = baseLinks.filter((l) => !(l.target.id === name || l.source.id === name));
 		nodes = [...baseNodes];
 		links = [...baseLinks];
+		if (socket?.readyState !== 1) {
+			saveToLocalStorage({ notes, nodes, links });
+		}
 		group
 			.selectAll('circle')
 			.data(nodes, (node) => node.id)
