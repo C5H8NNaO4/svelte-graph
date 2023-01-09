@@ -23,40 +23,20 @@
 	let r = 0;
 	let [state, dispatch] = useReducer(reducer, initialState);
 
-	console.log('STATE', state);
-
 	let baseNodes = state.nodes;
 	let baseLinks = state.links;
 	let links = [...baseLinks];
 	let nodes = [...baseNodes];
 	let readyState = -1;
+
+	let update, group, selectNode, zoom, textGroup, simulation;
+	let g_selectedNode;
+	let width;
+	let linkElements, nodeElements, textElements;
+
 	const resetData = () => {
-		// const nodeIds = nodes.map((node) => node.id);
-		// const baseNodeIds = baseNodes.map((node) => node.id);
-
-		// baseNodes.forEach((node) => {
-		// 	if (nodeIds.indexOf(node.id) === -1) {
-		// 		nodes.push(node);
-		// 	}
-		// });
-
-		// nodes.slice().forEach((node) => {
-		// 	console.log('Remove?', node.id, baseNodeIds.indexOf(node.id));
-		// 	if (baseNodeIds.indexOf(node.id) === -1) {
-		// 		nodes.splice(nodes.indexOf(node), 1);
-		// 	}
-		// });
 		nodes = [...baseNodes];
 		links = [...baseLinks];
-	};
-
-	const onStateChange = (newState) => {
-		baseNodes = state.nodes;
-		baseLinks = state.links;
-		nodes = [...baseNodes];
-		links = [...links];
-		resetData?.();
-		update?.();
 	};
 
 	onMount(() => {
@@ -65,57 +45,33 @@
 			state = dispatch(HydrateLinks(JSON.parse(localStorage.links)));
 			baseNodes = state.nodes;
 			baseLinks = state.links;
-			// nodes = [...baseNodes];
-			// links = [...links];
 			resetData?.();
 			update?.();
 		}
 	});
 
-	// let baseLinks = typeof localStorage === 'undefined' ? [] : JSON.parse(localStorage.links || '[]');
-
-	const getLinksFromNotes = (notes) =>
-		Object.keys(notes).reduce((acc, target) => {
-			const src = Object.keys(notes).reduce((acc, id2) => {
-				const content = notes[id2];
-				console.log(target, content, content.includes(`[[${target}]]`));
-				if (content.includes(`[[${target}]]`)) return id2;
-				return acc;
-			}, null);
-
-			if (src && target) {
-				acc.push({ source: src, target, strength: 0.1 });
-			}
-
-			return acc;
-		}, []);
-	// const baseLinks = getLinksFromNotes(notes);
-
-	let update, group, select, zoom, textGroup, simulation;
-	let g_selectedNode;
-	let width;
-	let linkElements, nodeElements, textElements;
+	const onStateChange = (newState) => {
+		baseNodes = state.nodes;
+		baseLinks = state.links;
+		resetData?.();
+		update?.();
+	};
 
 	$: {
 		onStateChange(state);
 	}
 	onMount(() => {
-		width = window.innerWidth;
 		const height = window.innerHeight;
+		width = window.innerWidth;
 
 		const svg = d3.select('svg');
 		const g = svg.append('g');
 		svg.attr('width', width).attr('height', height - 66);
 
-		// we use svg groups to logically group the elements together
 		const linkGroup = g.append('g').attr('class', 'links');
 		const nodeGroup = g.append('g').attr('class', 'nodes');
 		textGroup = g.append('g').attr('class', 'texts');
 
-		// we use this reference to select/deselect
-		// after clicking the same element twice
-
-		// simulation setup with all forces
 		const linkForce = d3
 			.forceLink()
 			.id((link) => link.id)
@@ -153,7 +109,7 @@
 				simulation.force('center', d3.forceCenter().strength(0));
 			})
 			.on('drag', (e, node) => {
-				simulation.alphaTarget(0.7).restart();
+				simulation.alphaTarget(0.4).restart();
 				node.fx = e.x;
 				node.fy = e.y;
 			})
@@ -167,14 +123,24 @@
 				updateSimulation();
 			});
 
-		function selectNode(e, selectedNode) {
+		selectNode = (e, selectedNode) => {
 			if (g_selectedNode?.id === selectedNode.id) {
 				g_selectedNode = undefined;
 				cat = selectedNode.id;
 				width = window.innerWidth;
 				d3.select('svg').attr('width', width).attr('height', height);
+				simulation.force(
+					'center',
+					d3
+						.forceCenter()
+						.x(width / 2)
+						.y((height - 64) / 2)
+						.strength(0.8)
+				);
 				resetData();
 				updateSimulation();
+
+				simulation.force('center', d3.forceCenter().strength(0));
 			} else {
 				width = window.innerWidth - 350;
 				cat = selectedNode.id;
@@ -187,6 +153,14 @@
 				g_selectedNode = sel;
 				updateData(selectedNode);
 				updateSimulation();
+				simulation.force(
+					'center',
+					d3
+						.forceCenter()
+						.x(width / 2)
+						.y((height - 64) / 2)
+						.strength(0.8)
+				);
 			}
 
 			const neighbors = getNeighbors(selectedNode, baseLinks);
@@ -199,10 +173,9 @@
 			d3.select('svg')
 				.attr('width', width)
 				.attr('height', window.innerHeight - 66);
-		}
-		select = selectNode;
+		};
 
-		function hoverNode(e, selectedNode) {
+		const hoverNode = (e, selectedNode) => {
 			const neighbors = getNeighbors(selectedNode, baseLinks);
 
 			// we modify the styles to highlight selected nodes
@@ -223,11 +196,8 @@
 				.attr('stroke-width', (n) => (n.id === selectedNode.id ? '2px' : '1px'));
 
 			linkElements.attr('stroke', (link) => getLinkColor(selectedNode, link));
-		}
-		function leaveNode(e, selectedNode) {
-			const neighbors = getNeighbors(selectedNode, baseLinks);
-
-			// we modify the styles to highlight selected nodes
+		};
+		const leaveNode = (e, selectedNode) => {
 			nodeElements
 				.attr('fill', (node) => getNodeColor(node, getNeighbors(node, baseLinks), nodes))
 				.attr('r', (node) => 5 + getNeighbors(node, links)?.length * (2 / node.level))
@@ -236,11 +206,8 @@
 				.attr('stroke-width', '1px');
 
 			linkElements.attr('stroke', (link) => '#E5E5E5');
-		}
-		// this helper simple adds all nodes and links
-		// that are missing, to recreate the initial state
+		};
 
-		// diffing and mutating the data
 		function updateData(selectedNode) {
 			const neighbors = getNeighbors(selectedNode, baseLinks);
 			const newNodes = baseNodes.filter(
@@ -262,7 +229,6 @@
 		}
 
 		function updateGraph() {
-			// links
 			linkElements = linkGroup
 				.selectAll('line')
 				.data(links, (link) => link.target.id + link.source.id);
@@ -276,7 +242,6 @@
 
 			linkElements = linkEnter.merge(linkElements);
 
-			// nodes
 			nodeElements = nodeGroup.selectAll('circle').data(nodes, (node) => node.id);
 			nodeElements.exit().remove();
 
@@ -287,15 +252,11 @@
 				.attr('fill', (node) => getNodeColor(node, getNeighbors(node, links), nodes))
 				.attr('stroke', 'black')
 				.call(dragDrop)
-				// we link the selectNode method here
-				// to update the graph on every click
 				.on('click', selectNode)
 				.on('mouseover', hoverNode)
 				.on('mouseout', leaveNode);
 
 			nodeElements = nodeEnter.merge(nodeElements);
-
-			// texts
 			textElements = textGroup.selectAll('text').data(nodes, (node) => node.id);
 			textElements.exit().remove();
 
@@ -335,11 +296,9 @@
 			simulation.alphaTarget(0.7).restart();
 			setTimeout(() => {
 				simulation.alphaTarget(0);
-			}, 300);
+			}, 0);
 		}
 
-		// last but not least, we call updateSimulation
-		// to trigger the initial render
 		updateSimulation();
 
 		update = () => {
@@ -349,7 +308,7 @@
 			updateSimulation();
 			setTimeout(() => {
 				simulation.alphaTarget(0);
-			}, 500);
+			}, 0);
 		};
 		group = nodeGroup;
 	});
@@ -419,7 +378,7 @@
 					.attr('stroke', 'black');
 				simulation.alphaTarget(1).restart();
 
-				setTimeout(() => simulation.alphaTarget(0), 2000);
+				setTimeout(() => simulation.alphaTarget(0), 100);
 			}
 
 			if (data.action === 'link') {

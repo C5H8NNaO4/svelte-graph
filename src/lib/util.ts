@@ -1,6 +1,22 @@
 import Color from 'color';
 import saveFile from 'save-as-file/dist/save-file';
 
+export const getLinksFromNotes = (notes) =>
+	Object.keys(notes).reduce((acc, target) => {
+		const src = Object.keys(notes).reduce((acc, id2) => {
+			const content = notes[id2];
+			console.log(target, content, content.includes(`[[${target}]]`));
+			if (content.includes(`[[${target}]]`)) return id2;
+			return acc;
+		}, null);
+
+		if (src && target) {
+			acc.push({ source: src, target, strength: 0.1 });
+		}
+
+		return acc;
+	}, []);
+	
 export function openFile(callBack) {
 	const element = document.createElement('input');
 	element.setAttribute('type', 'file');
